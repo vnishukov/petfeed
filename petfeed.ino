@@ -4,7 +4,9 @@
 #include <RTClib.h>
 #include <U8g2lib.h>
 
-#define FEED_DEFAULT_INTERVAL   500
+#define FIRMWARE_VERSION    "2.1.1"
+
+#define FEED_DEFAULT_INTERVAL   250
 
 #define MENU_INTERVAL         10000
 #define SUMMARY_INTERVAL       5000
@@ -14,7 +16,8 @@
 #define STEPPER_MAX_SPEED      3000
 #define STEPPER_MAX_STEPS       150
 
-#define A4988_PWR                 5
+#define A4988_VMOT                5
+#define A4988_EN                  6
 #define A4988_STEP               11
 #define A4988_DIR                12
 
@@ -90,9 +93,12 @@ void setup() {
   attachInterrupt(0, encoderTurnLeftInterrupt, CHANGE);
   attachInterrupt(1, encoderTurnRightInterrupt, CHANGE);
 
-  pinMode(A4988_PWR, OUTPUT);
+  pinMode(A4988_VMOT, OUTPUT);
+  pinMode(A4988_EN, OUTPUT);
   pinMode(A4988_STEP, OUTPUT);
   pinMode(A4988_DIR, OUTPUT);
+
+  disableDriver();
 
   EEPROM.get((int)&INITIAL_RUN_ADDR, INITIAL_RUN);
   if (INITIAL_RUN != 0) {
@@ -122,10 +128,6 @@ void setup() {
   stepper.setMaxSpeed(STEPPER_MAX_SPEED);
   stepper.setAcceleration(STEPPER_ACCELERATION);
   stepper.setCurrentPosition(0);
-
-  //  Serial.print("RAM available: ");
-  //  Serial.print(showAvailableMemory(), DEC);
-  //  Serial.println(" bytes");
 
   displayGreeting();
 
@@ -498,17 +500,25 @@ void feedMonitor() {
 }
 
 void openGate() {
-  //  Serial.print("Gate opened at: ");
-  //  Serial.println(millis());
-  digitalWrite(A4988_PWR, HIGH);
+  enableDriver();
   if (stepper.distanceToGo() == 0) stepper.runToNewPosition(stepper.currentPosition() + STEPPER_MAX_STEPS);
+  disableDriver();
 }
 
 void closeGate() {
-  //  Serial.print("Gate closed at: ");
-  //  Serial.println(millis());
+  enableDriver();
   if (stepper.distanceToGo() == 0) stepper.runToNewPosition(stepper.currentPosition() - STEPPER_MAX_STEPS);
-  digitalWrite(A4988_PWR, LOW);
+  disableDriver();
+}
+
+void enableDriver() {
+  digitalWrite(A4988_EN, LOW);
+  digitalWrite(A4988_VMOT, HIGH);
+}
+
+void disableDriver() {
+  digitalWrite(A4988_VMOT, LOW);
+  digitalWrite(A4988_EN, HIGH);
 }
 
 void activate(IActivation &activation) {
@@ -593,7 +603,7 @@ void displayGreeting() {
   lcd.print("PetFeed");
   lcd.setFont(u8x8_font_8x13B_1x2_r);
   lcd.setCursor(6, 21);
-  lcd.print("2.1.0");
+  lcd.print(FIRMWARE_VERSION);
 }
 
 void displayClock(byte tx, byte ty, byte dx, byte dy) {
@@ -755,10 +765,4 @@ void displayDateTimeElement(byte number) {
   } else {
     lcd.print(number);
   }
-}
-
-int showAvailableMemory() {
-  extern int __heap_start, *__brkval;
-  int v;
-  return (int) &v - (__brkval == 0 ? (int) &__heap_start : (int) __brkval);
 }
